@@ -22,17 +22,22 @@ def cleanName(text):
 
 def load_data():
     print("new data")
-
     gp = pd.read_csv("../gp.csv")
     train = pd.read_csv('../train.csv')
     test = pd.read_csv('../test.csv')
+    print('merge user periods')
     train = train.merge(gp, on='user_id', how='left')
     test = test.merge(gp, on='user_id', how='left')
     y = train.deal_probability
-
+    print('merge image blurrness')
+    train_blur = pd.read_csv('../train_blurrness.csv')
+    test_blur = pd.read_csv('../test_blurrness.csv')
+    train = train.merge(train_blur, on='item_id', how='left')
+    test = test.merge(test_blur, on='item_id', how='left')
+    
     df_all = pd.concat([train, test], axis = 0)
 
-    del gp, train, test
+    del gp, train, test, train_blur, test_blur
     gc.collect()
     return df_all, y 
 
@@ -75,106 +80,44 @@ def region_city(df_all):
     regional["region_en"] = regional.index
     regional["region_en"] = regional["region_en"].apply(lambda x: cleanName(x))
 
+    print('merge region')
     df_all = df_all.merge(regional, on = "region_en", how = "left").drop("region_en", axis = 1)
     df_all["Total_population"] = np.log(df_all["Total_population"]+1)
     df_all["Total_population"].fillna(df_all.Total_population.mean(),inplace=True)
 
+    del regional
     gc.collect()
     return df_all
 
 def category_name(df_all):
     print("parent_category_name / category_name")   
-
 #    df_all['categories'] = df_all.apply(lambda row: ' '.join([str(row['parent_category_name']), str(row['category_name'])]),axis=1)
-    
+    print('fill null numeric data')
     numeric = ["image_blurrness_score", "avg_days_up_user", "avg_times_up_user", "n_user_items", "Density_of_region(km2)", "Rural_%", "Urban%"]
     for col in numeric:
-        df[col].fillna(-1, inplace = True)
-
-
-
-    gc.collect()
-    return df_all
-
-def params_(df_all):
-    print("params_1,2,3")
-
-    df_all['features'] = df_all.apply(lambda row: ' '.join([str(row['param_1']), str(row['param_2']), str(row['param_3'])]),axis=1)
-    print('fill missing values')
-    russ_no_para_trans = translator.translate('no parameter provided', dest='ru').text
-    df_all['features'].fillna(russ_no_para_trans)
-    print('regular expression')
-    df_all['features'] = re.sub('nan',  '', df_all['features'])  
-    #df_all.drop(["parent_category_name","category_name"],axis=1,inplace=True)
-    df_all.drop(["param_1","param_2","param_3"],axis=1,inplace=True)
+        temp_median = np.mean(df_all[col])
+        df_all[col].fillna(temp_median, inplace = True)
+        print('complete : ', col)
+        
+    print('image flag')
+    df_all['image'] = df_all['image'].map(lambda x: 1 if len(str(x)) >0 else 0)
 
     gc.collect()
-    return df_all
-
-def price_log(df_all):
-    print('price log')
-
-    df_all['price'] = np.log(df_all['price'] + 1)
-    price_mean = np.median(df_all.price)
-    df_all["price"].fillna(price_mean,inplace=True)
-
-    gc.collect()
-    return df_all
-
-def item_seq_log(df_all):
-    print('item_seq log')
-
-    df_all['item_seq_number'] = np.log(df_all['item_seq_number'] + 1)
-    item_mean = np.median(df_all.item_seq_number)
-    df_all["item_seq_number"].fillna(item_mean,inplace=True)
-
-    gc.collect()
-    return df_all
-
-def activation_date(df_all):
-    print('activation date')
-
-    df_all['activation_date'] =  pd.to_datetime(df_all['activation_date'], format = "%Y-%m-%d")
-
-    df_all["Weekday"] = df_all['activation_date'].dt.weekday
-    df_all["month"] = df_all['activation_date'].dt.month
-    df_all["Weekd of Year"] = df_all['activation_date'].dt.week
-    df_all["days"] = df_all['activation_date'].dt.day
-
-    df_all.drop(["activation_date","image"],axis=1,inplace=True)
-    
-    return df_all
-
-
-
-def label_encoding(df_all):
-    categorical = ["user_id","region","city","parent_category_name","category_name","user_type","image_top_1","Time_zone"]
-    print("Encoding :",categorical)
-
-    # Encoder:
-    lbl = preprocessing.LabelEncoder()
-    for col in categorical:
-        #df_all[col].fillna('Unknown')
-        df_all[col] = lbl.fit_transform(df_all[col].astype(str))
-
     return df_all
 
 def split_train_test(df_all, y):
+    print('train test split')
     train1 = df_all[:len(y)]
     test1 = df_all[len(y):]
 
     train1.to_csv('../train1.csv', index=False)
     test1.to_csv('../test1.csv', index=False)
+    print('complete : ', train1.shape, test1.shape)
     
 def main():
     df_all, y = load_data()
     df_all = region_city(df_all)
     df_all = category_name(df_all)
-    df_all = params_(df_all)
-    df_all = price_log(df_all)
-    df_all = item_seq_log(df_all)
-    df_all = activation_date(df_all)
-    df_all = label_encoding(df_all)
     split_train_test(df_all, y)
 
 if __name__ == "__main__":
