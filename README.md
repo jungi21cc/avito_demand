@@ -93,7 +93,7 @@ Target 데이터 : deal_probability (0~1 확률분포)
 -   N_jobs =  -1
 -   Reg_rambda = 0.5
 
-- 결론
+#### 결론
 -   RMSLE결과: 0.2240 (상위 24%)
 
 "
